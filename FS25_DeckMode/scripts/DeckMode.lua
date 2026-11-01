@@ -21,15 +21,16 @@
 --    size live, (re)apply the graphics preset and switch controller mode.
 --
 -- Settings: <modSettings>/FS25_DeckMode.xml
---   <deckMode scale="1.5" targetFps="30" graphicsStyle="balanced" graphicsPresetApplied="false"
+--   <deckMode scale="2.0" hudScale="1.5" targetFps="60" graphicsStyle="balanced" graphicsPresetApplied="false"
 --             controllerMode="true" controllerModeApplied="false"/>
---   scale: 1.0 - 2.0 | targetFps: off, 30 or 60 | graphicsStyle: powersaver, balanced or quality
+--   scale: 1.0 - 2.0 | hudScale: 0 (game setting) or 1.3 - 2.0 | targetFps: off, 30 or 60
+--   graphicsStyle: powersaver, balanced or quality
 --   set graphicsPresetApplied="false" to apply the preset again on the next savegame load
 
 DeckMode = {}
 DeckMode.MOD_NAME = g_currentModName
 DeckMode.MOD_DIR = g_currentModDirectory
-DeckMode.DEFAULT_SCALE = 1.5
+DeckMode.DEFAULT_SCALE = 2.0
 DeckMode.MIN_SCALE = 1.0
 DeckMode.MAX_SCALE = 2.0
 DeckMode.SETTINGS_FILE = "FS25_DeckMode.xml"
@@ -37,12 +38,14 @@ DeckMode.FLAG = "deckModeScaled"
 DeckMode.DEBUG = false -- true: dump the settings page structure to log.txt on savegame load
 
 DeckMode.scale = DeckMode.DEFAULT_SCALE
-DeckMode.graphicsFps = "30"            -- "off", "30" or "60"
+DeckMode.graphicsFps = "60"            -- "off", "30" or "60"
 DeckMode.graphicsStyle = "balanced"    -- "powersaver", "balanced" or "quality"
-DeckMode.graphicsPreset = "balanced30" -- derived: style .. fps, or "off"
+DeckMode.graphicsPreset = "balanced60" -- derived: style .. fps, or "off"
 DeckMode.graphicsPresetApplied = false
 DeckMode.controllerMode = true
 DeckMode.controllerModeApplied = false
+DeckMode.hudScale = 1.5        -- 0: use the game's UI scale setting; otherwise a factor up to 2.0
+DeckMode.hudScaleOriginal = nil -- the game's own UI scale before Deck Mode changed it
 DeckMode.settingsPath = nil
 
 local function log(fmt, ...)
@@ -88,6 +91,8 @@ function DeckMode.loadSettings()
             DeckMode.graphicsPresetApplied = Utils.getNoNil(getXMLBool(xmlFile, "deckMode#graphicsPresetApplied"), false)
             DeckMode.controllerMode = Utils.getNoNil(getXMLBool(xmlFile, "deckMode#controllerMode"), true)
             DeckMode.controllerModeApplied = Utils.getNoNil(getXMLBool(xmlFile, "deckMode#controllerModeApplied"), false)
+            DeckMode.hudScale = Utils.getNoNil(getXMLFloat(xmlFile, "deckMode#hudScale"), DeckMode.hudScale)
+            DeckMode.hudScaleOriginal = getXMLFloat(xmlFile, "deckMode#hudScaleOriginal")
             delete(xmlFile)
         end
     else
@@ -126,6 +131,10 @@ function DeckMode.saveSettings()
         setXMLBool(xmlFile, "deckMode#graphicsPresetApplied", DeckMode.graphicsPresetApplied)
         setXMLBool(xmlFile, "deckMode#controllerMode", DeckMode.controllerMode)
         setXMLBool(xmlFile, "deckMode#controllerModeApplied", DeckMode.controllerModeApplied)
+        setXMLFloat(xmlFile, "deckMode#hudScale", DeckMode.hudScale)
+        if DeckMode.hudScaleOriginal ~= nil then
+            setXMLFloat(xmlFile, "deckMode#hudScaleOriginal", DeckMode.hudScaleOriginal)
+        end
         saveXMLFile(xmlFile)
         delete(xmlFile)
     end
@@ -202,7 +211,7 @@ function DeckMode.setGraphicsChoice(fps, style)
     fps = string.lower(tostring(fps))
     style = string.lower(tostring(style))
     if indexOf(DeckMode.FPS_ORDER, fps) == nil then
-        fps = "30"
+        fps = "60"
     end
     if indexOf(DeckMode.STYLE_ORDER, style) == nil then
         style = "balanced"
@@ -220,7 +229,7 @@ function DeckMode.migratePreset(name)
         battery30 = {"30", "powersaver"}, quality30 = {"30", "quality"},
         battery60 = {"60", "powersaver"}, quality60 = {"60", "quality"},
     }
-    local choice = legacy[string.lower(tostring(name))] or {"30", "balanced"}
+    local choice = legacy[string.lower(tostring(name))] or {"60", "balanced"}
     DeckMode.setGraphicsChoice(choice[1], choice[2])
 end
 
@@ -488,6 +497,54 @@ function DeckMode.applyControllerMode(enabled)
 end
 
 ---------------------------------------------------------------------------------------------------
+-- HUD size beyond the game's 125% maximum
+---------------------------------------------------------------------------------------------------
+
+-- The game's UI Scale option only lists 50% - 125%, but the HUD takes any factor from the
+-- UI_SCALE game setting and rescales itself when that setting changes. Deck Mode sets the value
+-- on every savegame load (it is not limited to the option list), and restores the game's own
+-- value when switched back to "Game setting".
+DeckMode.HUD_STEPS = {0, 1.3, 1.4, 1.5, 1.6, 1.75, 2.0}
+DeckMode.GAME_MAX_UI_SCALE = 1.25
+
+local function getUiScale()
+    if g_gameSettings == nil or GameSettings == nil or GameSettings.SETTING == nil or GameSettings.SETTING.UI_SCALE == nil then
+        return nil
+    end
+    return g_gameSettings:getValue(GameSettings.SETTING.UI_SCALE)
+end
+
+function DeckMode.applyHudScale()
+    local current = getUiScale()
+    if current == nil then
+        log("HUD size: UI scale setting not available")
+        return
+    end
+
+    if DeckMode.hudScale ~= nil and DeckMode.hudScale > 0 then
+        -- remember the player's own value (only a value the game itself can produce)
+        if current <= DeckMode.GAME_MAX_UI_SCALE + 0.001 then
+            DeckMode.hudScaleOriginal = current
+        end
+        if math.abs(current - DeckMode.hudScale) > 0.001 then
+            pcall(g_gameSettings.setValue, g_gameSettings, GameSettings.SETTING.UI_SCALE, DeckMode.hudScale)
+        end
+    elseif DeckMode.hudScaleOriginal ~= nil then
+        pcall(g_gameSettings.setValue, g_gameSettings, GameSettings.SETTING.UI_SCALE, DeckMode.hudScaleOriginal)
+        DeckMode.hudScaleOriginal = nil
+    elseif current > DeckMode.GAME_MAX_UI_SCALE + 0.001 then
+        pcall(g_gameSettings.setValue, g_gameSettings, GameSettings.SETTING.UI_SCALE, DeckMode.GAME_MAX_UI_SCALE)
+    end
+
+    if g_gameSettings.save ~= nil then
+        pcall(g_gameSettings.save, g_gameSettings)
+    end
+    DeckMode.saveSettings()
+    log("HUD size %s (UI scale now %s)", DeckMode.hudScale > 0 and string.format("%d%%", math.floor(DeckMode.hudScale * 100 + 0.5)) or "game setting",
+        tostring(getUiScale()))
+end
+
+---------------------------------------------------------------------------------------------------
 -- "Deck Mode" section in the in-game Settings page (General settings tab)
 ---------------------------------------------------------------------------------------------------
 
@@ -510,6 +567,17 @@ end
 
 local function styleIndex()
     return indexOf(DeckMode.STYLE_ORDER, DeckMode.graphicsStyle) or 2
+end
+
+local function hudIndex()
+    local best, bestDiff = 1, math.huge
+    for i, value in ipairs(DeckMode.HUD_STEPS) do
+        local diff = math.abs(value - (DeckMode.hudScale or 0))
+        if diff < bestDiff then
+            best, bestDiff = i, diff
+        end
+    end
+    return best
 end
 
 local function namesFor(order, names)
@@ -604,6 +672,20 @@ function DeckMode.buildSettingsSection()
         end)
     section.scaleOption = scaleOption
 
+    local hudTexts = {"Game Setting"}
+    for i = 2, #DeckMode.HUD_STEPS do
+        table.insert(hudTexts, string.format("%d%%", math.floor(DeckMode.HUD_STEPS[i] * 100 + 0.5)))
+    end
+    local _, hudOption = createRow(page, layout, templateRow, "HUD Size",
+        "Size of the HUD (speedometer, minimap, field info), beyond the game's 125% UI Scale maximum. "
+            .. "Game Setting: use the game's own UI Scale.",
+        hudTexts, hudIndex(),
+        function(state)
+            DeckMode.hudScale = DeckMode.HUD_STEPS[state] or 0
+            DeckMode.applyHudScale()
+        end)
+    section.hudOption = hudOption
+
     local function onGraphicsChoice(fps, style)
         DeckMode.setGraphicsChoice(fps, style)
         if DeckMode.graphicsPreset == "off" then
@@ -664,6 +746,9 @@ function DeckMode.refreshSettingsSection()
     end
     if section.scaleOption ~= nil then
         section.scaleOption:setState(scaleIndex())
+    end
+    if section.hudOption ~= nil then
+        section.hudOption:setState(hudIndex())
     end
     if section.fpsOption ~= nil then
         section.fpsOption:setState(fpsIndex())
@@ -1055,6 +1140,10 @@ function DeckMode:update(dt)
     end
     if DeckMode.controllerMode and not DeckMode.controllerModeApplied then
         DeckMode.applyControllerMode(true)
+    end
+    -- the HUD size is not part of the game's option list, so set it on every savegame load
+    if DeckMode.hudScale ~= nil and DeckMode.hudScale > 0 then
+        DeckMode.applyHudScale()
     end
 end
 
