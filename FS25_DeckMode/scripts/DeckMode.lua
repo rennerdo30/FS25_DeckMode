@@ -283,7 +283,30 @@ DeckMode.KNOBS = {
     {key = "foliageLod",      label = "foliage LOD distance",     apply = engine("setFoliageLODDistanceCoeff")},
     {key = "tireTracks",      label = "tire tracks",              apply = engine("setTyreTracksSegmentsCoeff")},
     {key = "mirrors",         label = "max mirrors",              apply = gameSetting("MAX_NUM_MIRRORS")},
-    {key = "frameLimit",      label = "frame limit",              apply = gameSetting("FRAME_LIMIT")},
+    {key = "frameLimit",      label = "frame limit",              apply = function(fps)
+        -- Writing GameSettings.FRAME_LIMIT alone only stores the value; the engine cap is set by the
+        -- settings model's writer (what the Settings menu calls). Write another value first, so the
+        -- writer also acts when the stored value is already the target.
+        local model = g_settingsModel
+        local key = SettingsModel ~= nil and SettingsModel.SETTING ~= nil and SettingsModel.SETTING.FRAME_LIMIT or nil
+        if model == nil or key == nil or model.settingWriters == nil or model.settingWriters[key] == nil
+            or model.frameLimitMapping == nil then
+            return gameSetting("FRAME_LIMIT")(fps)
+        end
+        local index = model.frameLimitMapping[fps]
+        if index == nil then
+            return false, "frame limit " .. tostring(fps) .. " not offered by the game"
+        end
+        local writer = model.settingWriters[key]
+        local ok, err = pcall(function()
+            local other = index == 1 and 2 or 1
+            if model.frameLimitMappingReverse ~= nil and model.frameLimitMappingReverse[other] ~= nil then
+                writer(other, key)
+            end
+            writer(index, key)
+        end)
+        return ok, err
+    end},
     -- FSR 3 upscaling; post-process AA off as the settings menu does when FSR 3 is selected
     {key = "upscaler",        label = "FSR 3 upscaling",          apply = function(mode)
         local quality = enumValue("FidelityFxSR30Quality", mode)
