@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="no" ?>
+<modDesc descVersion="90">
+    <author>rennerdo30</author>
+    <version>0.5.0.0</version>
+
+    <title>
+        <en>Deck Mode</en>
+        <de>Deck Mode</de>
+    </title>
+
+    <description>
+        <en><![CDATA[Makes Farming Simulator 25 comfortable on handheld PCs such as the Steam Deck.
+
+- Bigger text in the in-game menus, the map screen, the shop, dialogs, tooltips and the button help bar (default 150%, 100% to 200%).
+- Handheld graphics presets: pick a target FPS (30 or 60) and a style (Power Saver, Balanced or High Quality). Uses FSR 3 upscaling and the game's frame limit.
+- Controller mode: gamepad input on, and the button help always shows controller buttons.
+- A DECK MODE section at the top of Settings > General settings to change all of this in game.
+
+Graphics and controller settings are applied once on the first savegame load; your later changes in the settings menu are kept.
+
+The HUD is not changed; use the game's own UI scale setting for it. The main menu cannot be changed by mods, because mod scripts only run once a savegame is loaded.
+
+Source and issues: https://github.com/rennerdo30/FS25_DeckMode]]></en>
+        <de><![CDATA[Macht Farming Simulator 25 auf Handheld-PCs wie dem Steam Deck angenehm spielbar.
+
+- Größere Texte in den Spielmenüs, auf der Karte, im Shop, in Dialogen, Tooltips und der Tastenhilfe (Standard 150%, 100% bis 200%).
+- Grafik-Presets für Handhelds: Ziel-FPS (30 oder 60) und Stil (Stromsparen, Ausgewogen oder Hohe Qualität) wählen. Nutzt FSR-3-Upscaling und die Bildratenbegrenzung des Spiels.
+- Controller-Modus: Gamepad-Eingabe an, und die Tastenhilfe zeigt immer Controller-Tasten.
+- Ein Bereich DECK MODE oben unter Einstellungen > Allgemeine Einstellungen, um all das im Spiel zu ändern.
+
+Grafik- und Controller-Einstellungen werden einmalig beim ersten Laden eines Spielstands angewendet; spätere Änderungen im Einstellungsmenü bleiben erhalten.
+
+Das HUD bleibt unverändert; dafür die Spieleinstellung UI-Skalierung verwenden. Das Hauptmenü kann von Mods nicht verändert werden, weil Mod-Skripte erst beim Laden eines Spielstands laufen.
+
+Quellcode und Fehlermeldungen: https://github.com/rennerdo30/FS25_DeckMode]]></de>
+    </description>
+
+    <iconFilename>icon_deckMode.png</iconFilename>
+    <multiplayer supported="true"/>
+
+    <extraSourceFiles>
+        <sourceFile filename="scripts/DeckMode.lua"/>
+    </extraSourceFiles>
+</modDesc>

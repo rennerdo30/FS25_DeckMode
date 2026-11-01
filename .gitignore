@@ -1,0 +1,6 @@
+# GIANTS game source and SDK files: reference only, never publish
+reference/
+
+.venv/
+dist/
+*.zip
